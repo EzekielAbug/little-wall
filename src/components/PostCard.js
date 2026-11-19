@@ -38,20 +38,24 @@ export default function PostCard({ post }) {
     setRelativeTime(getRelativeTime(post.created_at));
   }, [post.created_at]);
 
+  // Extract author initial (e.g. "Sarah" -> "S", defaults to "G")
+  const authorName = (post.author || "Guest").trim();
+  const authorInitial = authorName.charAt(0).toUpperCase() || "G";
+
   return (
     <article className="bg-white rounded-lg border border-[#E5EAF0] p-4">
       {/* Header: avatar, name, mood, time */}
       <div className="flex items-start gap-3">
-        {/* Avatar placeholder with Initials */}
+        {/* Avatar with Author Initial */}
         <div className="w-9 h-9 rounded-full bg-[#E5EAF0] flex items-center justify-center text-xs font-bold text-[#68778A] shrink-0">
-          G
+          {authorInitial}
         </div>
 
         <div className="min-w-0 flex-1">
           {/* Name and mood badge */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold text-[#273449]">
-              {post.author}
+              {authorName}
             </span>
 
             {post.mood && (

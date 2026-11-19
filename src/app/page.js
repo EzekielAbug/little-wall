@@ -78,7 +78,7 @@ export default function Home() {
   }, [fetchPosts]);
 
   // 3. Handle post submission
-  async function handleAddPost({ message, mood }) {
+  async function handleAddPost({ author, message, mood }) {
     setSubmitError("");
 
     // Client-side validation
@@ -88,6 +88,7 @@ export default function Home() {
       return false;
     }
 
+    const postAuthor = (author && author.trim()) ? author.trim().slice(0, 30) : "Guest";
     const selectedMood = APPROVED_MOODS.includes(mood) ? mood : "Chill";
 
     setIsPending(true);
@@ -97,7 +98,7 @@ export default function Home() {
         .from("posts")
         .insert([
           {
-            author: "Guest",
+            author: postAuthor,
             message: trimmedMessage,
             mood: selectedMood,
           },
