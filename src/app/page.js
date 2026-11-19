@@ -1,67 +1,161 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import Navbar from "@/components/Navbar";
+import ProfileSidebar from "@/components/ProfileSidebar";
+import PostComposer from "@/components/PostComposer";
+import PostFeed from "@/components/PostFeed";
+import { supabase } from "@/lib/supabase";
+
+const APPROVED_MOODS = ["Happy", "Chill", "Tired", "Gaming"];
 
 export default function Home() {
+  const [posts, setPosts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [feedError, setFeedError] = useState("");
+  const [isPending, setIsPending] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  // 1. Fetch the latest 50 posts from Supabase (newest first)
+  const fetchPosts = useCallback(async () => {
+    setIsLoading(true);
+    setFeedError("");
+
+    try {
+      const { data, error } = await supabase
+        .from("posts")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (error) {
+        throw error;
+      }
+
+      setPosts(data || []);
+    } catch (err) {
+      console.error("Error loading posts:", err);
+      setFeedError(err.message || "Failed to load posts from the wall.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // 2. Initial load and Supabase Realtime subscription
+  useEffect(() => {
+    fetchPosts();
+
+    // Subscribe to new posts inserted into the 'posts' table
+    const channel = supabase
+      .channel("public:posts")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "posts",
+        },
+        (payload) => {
+          const newPost = payload.new;
+          if (!newPost || !newPost.id) return;
+
+          setPosts((prev) => {
+            // Deduplicate: avoid adding if post already exists in state
+            if (prev.some((p) => p.id === newPost.id)) {
+              return prev;
+            }
+            // Maintain newest-first order
+            return [newPost, ...prev];
+          });
+        }
+      )
+      .subscribe();
+
+    // Clean up realtime channel on unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchPosts]);
+
+  // 3. Handle post submission
+  async function handleAddPost({ message, mood }) {
+    setSubmitError("");
+
+    // Client-side validation
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage || trimmedMessage.length > 280) {
+      setSubmitError("Message must be between 1 and 280 characters.");
+      return false;
+    }
+
+    const selectedMood = APPROVED_MOODS.includes(mood) ? mood : "Chill";
+
+    setIsPending(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("posts")
+        .insert([
+          {
+            author: "Guest",
+            message: trimmedMessage,
+            mood: selectedMood,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      // Add to state immediately (if Realtime hasn't already delivered it)
+      if (data) {
+        setPosts((prev) => {
+          if (prev.some((p) => p.id === data.id)) {
+            return prev;
+          }
+          return [data, ...prev];
+        });
+      }
+
+      return true; // Indicates success so PostComposer can clear input
+    } catch (err) {
+      console.error("Failed to post message:", err);
+      setSubmitError(err.message || "Could not publish message. Please try again.");
+      return false;
+    } finally {
+      setIsPending(false);
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.js
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
+    <div className="min-h-screen bg-[#F5F7FA] flex flex-col text-[#273449]">
+      <Navbar />
+
+      {/* Main container */}
+      <main className="max-w-5xl w-full mx-auto px-4 py-6 flex-1">
+        {/* 2-column layout: Left sidebar + Main feed */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+          {/* Profile Sidebar */}
+          <div className="md:col-span-1">
+            <ProfileSidebar />
+          </div>
+
+          {/* Main content: Composer + Feed */}
+          <div className="md:col-span-2 space-y-6">
+            <PostComposer
+              onSubmit={handleAddPost}
+              isPending={isPending}
+              submitError={submitError}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+            <PostFeed
+              posts={posts}
+              isLoading={isLoading}
+              error={feedError}
+            />
+          </div>
         </div>
       </main>
     </div>
