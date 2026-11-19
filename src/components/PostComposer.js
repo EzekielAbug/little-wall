@@ -10,10 +10,8 @@ const MOODS = [
 ];
 
 const MAX_LENGTH = 280;
-const MAX_AUTHOR_LENGTH = 30;
 
 export default function PostComposer({ onSubmit, isPending, submitError }) {
-  const [author, setAuthor] = useState("");
   const [message, setMessage] = useState("");
   const [mood, setMood] = useState("Chill");
 
@@ -25,10 +23,7 @@ export default function PostComposer({ onSubmit, isPending, submitError }) {
     e.preventDefault();
     if (!canSubmit) return;
 
-    const trimmedAuthor = author.trim() || "Guest";
-
     const success = await onSubmit({
-      author: trimmedAuthor,
       message: trimmedMessage,
       mood,
     });
@@ -36,7 +31,6 @@ export default function PostComposer({ onSubmit, isPending, submitError }) {
     // Only reset form inputs if submission succeeded
     if (success) {
       setMessage("");
-      setAuthor("");
       setMood("Chill");
     }
   }
@@ -52,18 +46,6 @@ export default function PostComposer({ onSubmit, isPending, submitError }) {
           {submitError}
         </div>
       )}
-
-      {/* Author name input (optional) */}
-      <div className="mb-3">
-        <input
-          type="text"
-          value={author}
-          onChange={(e) => setAuthor(e.target.value)}
-          placeholder="Your name (optional, defaults to Guest)"
-          maxLength={MAX_AUTHOR_LENGTH}
-          className="w-full border border-[#E5EAF0] rounded-md px-3 py-2 text-sm text-[#273449] placeholder-[#68778A] focus:outline-none focus:border-[#3478E5] transition-colors"
-        />
-      </div>
 
       {/* Message Textarea */}
       <textarea

@@ -8,6 +8,7 @@ import PostFeed from "@/components/PostFeed";
 import { supabase } from "@/lib/supabase";
 
 const APPROVED_MOODS = ["Happy", "Chill", "Tired", "Gaming"];
+const DEFAULT_OWNER_NAME = "Wall Owner";
 
 export default function Home() {
   const [posts, setPosts] = useState([]);
@@ -15,6 +16,30 @@ export default function Home() {
   const [feedError, setFeedError] = useState("");
   const [isPending, setIsPending] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [ownerName, setOwnerName] = useState(DEFAULT_OWNER_NAME);
+
+  // Restore saved profile name from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedName = localStorage.getItem("little_wall_owner_name");
+      if (savedName && savedName.trim()) {
+        setOwnerName(savedName.trim());
+      }
+    } catch {
+      // localStorage may be unavailable in some private browsing modes
+    }
+  }, []);
+
+  function handleUpdateOwnerName(newName) {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    setOwnerName(trimmed);
+    try {
+      localStorage.setItem("little_wall_owner_name", trimmed);
+    } catch {
+      // Ignore storage errors
+    }
+  }
 
   // 1. Fetch the latest 50 posts from Supabase (newest first)
   const fetchPosts = useCallback(async () => {
@@ -77,8 +102,8 @@ export default function Home() {
     };
   }, [fetchPosts]);
 
-  // 3. Handle post submission
-  async function handleAddPost({ author, message, mood }) {
+  // 3. Handle post submission using the Profile Owner's name
+  async function handleAddPost({ message, mood }) {
     setSubmitError("");
 
     // Client-side validation
@@ -88,7 +113,7 @@ export default function Home() {
       return false;
     }
 
-    const postAuthor = (author && author.trim()) ? author.trim().slice(0, 30) : "Guest";
+    const postAuthor = (ownerName && ownerName.trim()) ? ownerName.trim().slice(0, 30) : "Guest";
     const selectedMood = APPROVED_MOODS.includes(mood) ? mood : "Chill";
 
     setIsPending(true);
@@ -140,7 +165,10 @@ export default function Home() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
           {/* Profile Sidebar */}
           <div className="md:col-span-1">
-            <ProfileSidebar />
+            <ProfileSidebar
+              ownerName={ownerName}
+              onUpdateName={handleUpdateOwnerName}
+            />
           </div>
 
           {/* Main content: Composer + Feed */}
